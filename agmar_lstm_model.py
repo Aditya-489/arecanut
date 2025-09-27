@@ -1,60 +1,49 @@
 import pandas as pd
-import pandas as pd
 import numpy as np
 from sklearn.preprocessing import MinMaxScaler
-from sklearn.model_selection import train_test_split
-from tensorflow.python.keras.models import Sequential
-from tensorflow.python.keras.layers import LSTM, Dense
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import LSTM, Dense
+import joblib # Import joblib
 
-# Read the CSV file
+# --- 1. Load and Prepare Data ---
 df = pd.read_csv("Agmar.csv")
-
-# Preprocess the data
 df['Price Date'] = pd.to_datetime(df['Price Date'])
-df['Year'] = df['Price Date'].dt.year
-df['Month'] = df['Price Date'].dt.month
-df = df[['Year', 'Month', 'Modal Price (Rs./Quintal)']]
+df.sort_values('Price Date', inplace=True)
+price_data = df[['Modal Price (Rs./Quintal)']].values
 
-# Split into features and target
-X = df[['Year', 'Month']]
-y = df['Modal Price (Rs./Quintal)']
+# --- 2. Scale the Data ---
+# We scale the data first to a range of 0-1, which is optimal for LSTMs
+scaler = MinMaxScaler(feature_range=(0, 1))
+scaled_data = scaler.fit_transform(price_data)
 
-# Scale the features and target
-scaler = MinMaxScaler()
-X_scaled = scaler.fit_transform(X)
-y_scaled = scaler.fit_transform(np.array(y).reshape(-1, 1))
+# --- 3. Create Training Sequences ---
+# We will use the past 30 days (SEQUENCE_LENGTH) to predict the next day
+SEQUENCE_LENGTH = 30
+X, y = [], []
 
-# Split the data into training and testing sets
-X_train, X_test, y_train, y_test = train_test_split(X_scaled, y_scaled, test_size=0.2, random_state=42)
+for i in range(len(scaled_data) - SEQUENCE_LENGTH):
+    X.append(scaled_data[i:(i + SEQUENCE_LENGTH), 0])
+    y.append(scaled_data[i + SEQUENCE_LENGTH, 0])
 
-# Reshape the input data for LSTM
-X_train = np.reshape(X_train, (X_train.shape[0], 1, X_train.shape[1]))
-X_test = np.reshape(X_test, (X_test.shape[0], 1, X_test.shape[1]))
+X, y = np.array(X), np.array(y)
 
-# Build the LSTM model
+# Reshape X to be [samples, timesteps, features] which is required for LSTM
+X = np.reshape(X, (X.shape[0], X.shape[1], 1))
+
+
+# --- 4. Build and Train the LSTM Model ---
 model = Sequential()
-model.add(LSTM(128, activation='relu', input_shape=(1, X_train.shape[2])))
-model.add(Dense(1))
-model.compile(optimizer='adam', loss='mse')
+model.add(LSTM(units=50, return_sequences=True, input_shape=(X.shape[1], 1)))
+model.add(LSTM(units=50))
+model.add(Dense(units=1))
 
-# Train the model
-model.fit(X_train, y_train, epochs=100, batch_size=32, verbose=1)
+model.compile(optimizer='adam', loss='mean_squared_error')
+print("Training model...")
+model.fit(X, y, epochs=25, batch_size=32)
 
-# Evaluate the model
-mse = model.evaluate(X_test, y_test, verbose=0)
-print('Mean Squared Error:', mse)
 
-# Make predictions
-predictions = model.predict(X_test)
-
-# Inverse transform the scaled predictions
-predictions = scaler.inverse_transform(predictions)
-
-# Print some sample predictions
-for i in range(5):
-    print('Actual:', scaler.inverse_transform(y_test[i].reshape(-1, 1))[0][0])
-    print('Predicted:', predictions[i][0])
-    print()
-
-# Save the model
+# --- 5. Save the Model AND the Scaler ---
 model.save('model.h5')
+joblib.dump(scaler, 'scaler.gz') # Save the scaler for the app to use
+
+print("\nSuccessfully trained and saved 'model.h5' and 'scaler.gz'")
