@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Areca Nut Price Predictor</title>
+    <!-- Dependency 1: Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Dependency 2: Google Fonts (Inter) for typography -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
+    <div class="w-full max-w-md mx-auto bg-white rounded-xl shadow-lg p-8">
+        
+        <!-- Header Section -->
+        <div class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-gray-800">Areca Nut Price Predictor</h1>
+            <p id="currentDate" class="text-gray-500 mt-2"></p>
+        </div>
+
+        <!-- Button -->
+        <div class="mt-6">
+            <button onclick="predictPrice()" id="predictButton" class="w-full bg-green-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-transform transform hover:scale-105">
+                Predict Tomorrow's Price
+            </button>
+        </div>
+
+        <!-- Result Section -->
+        <div id="result" class="mt-8 text-center p-6 bg-gray-50 rounded-lg min-h-[90px] flex items-center justify-center">
+             <p class="text-gray-500">Your predicted price will appear here.</p>
+        </div>
+
+    </div>
+
+    <script>
+        const predictButton = document.getElementById('predictButton');
+        const resultDiv = document.getElementById('result');
+
+        // Dynamically set the current date when the page loads
+        document.addEventListener('DOMContentLoaded', (event) => {
+            const today = new Date();
+            const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            document.getElementById('currentDate').textContent = today.toLocaleDateString('en-US', options);
+        });
+
+        async function predictPrice() {
+            // This URL points to your local Python backend.
+            const apiUrl = 'http://127.0.0.1:5001/predict';
+
+            // Show loading state
+            predictButton.disabled = true;
+            predictButton.textContent = 'Analyzing Market Data...';
+            resultDiv.innerHTML = `<div class="flex items-center justify-center space-x-2">
+                <div class="w-4 h-4 rounded-full animate-pulse bg-green-500"></div>
+                <div class="w-4 h-4 rounded-full animate-pulse bg-green-500" style="animation-delay: 0.2s;"></div>
+                <div class="w-4 h-4 rounded-full animate-pulse bg-green-500" style="animation-delay: 0.4s;"></div>
+            </div>`;
+
+            try {
+                // Send the request to the backend. No need to send a body anymore.
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (!response.ok) {
+                    const errData = await response.json();
+                    throw new Error(errData.error || `API Error: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+
+                // Display the successful prediction
+                resultDiv.innerHTML = `
+                    <div class="text-center">
+                        <p class="text-sm text-gray-500">Predicted Price for Tomorrow (₹/kg)</p>
+                        <p class="text-4xl font-bold text-green-700">₹ ${data.predicted_price.toFixed(2)}</p>
+                    </div>
+                `;
+
+            } catch (error) {
+                console.error('Prediction Error:', error);
+                resultDiv.innerHTML = `<p class="text-red-600 font-semibold">Failed to get prediction. ${error.message}</p><p class="text-xs text-gray-500 mt-2">Is the Python backend server running?</p>`;
+            } finally {
+                // Re-enable the button
+                predictButton.disabled = false;
+                predictButton.textContent = "Predict Tomorrow's Price";
+            }
+        }
+    </script>
+
+</body>
+</html>
+
