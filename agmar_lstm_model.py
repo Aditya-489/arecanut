@@ -6,7 +6,7 @@ from tensorflow.keras.layers import LSTM, Dense
 import joblib # Import joblib
 
 # --- 1. Load and Prepare Data ---
-df = pd.read_csv("Agmar.csv")
+df = pd.read_csv("arecanut.csv")
 df['Price Date'] = pd.to_datetime(df['Price Date'])
 df.sort_values('Price Date', inplace=True)
 price_data = df[['Modal Price (Rs./Quintal)']].values
